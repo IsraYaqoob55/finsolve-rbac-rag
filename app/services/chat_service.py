@@ -24,10 +24,13 @@ from app.llm.prompts import (
     format_departments,
     normalize_citations,
 )
+from app.nlp.query_analysis import looks_analytical
 from app.nlp.rewriter import QueryRewriter
+from app.rbac.guards import enforce_scope
 from app.rbac.policy import AccessScope
 from app.retrieval.retriever import SecureRetriever
 from app.retrieval.vector_store import SearchHit
+from app.structured.sql_tool import SQLTool, as_search_hit
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +55,7 @@ class ChatAnswer:
     model: str | None = None  # None when no LLM call was needed
     latency_ms: int = 0
     search_query: str = ""  # what was actually searched (a rewritten follow-up)
+    route: str = "docs"  # "docs" or "sql+docs" (a SQL result was used as a source)
 
     @property
     def cited_sources(self) -> list[Source]:
@@ -76,6 +80,7 @@ class _Prepared:
     hits: list[SearchHit]
     messages: list[Message]
     search_query: str
+    route: str
 
 
 class ChatService:
@@ -86,6 +91,7 @@ class ChatService:
         settings: Settings,
         rewriter: QueryRewriter | None = None,
         department_catalog: Mapping[str, str] | None = None,
+        sql_tool: SQLTool | None = None,
     ) -> None:
         """``department_catalog``: every department name -> description (from roles.yaml)."""
         self._retriever = retriever
@@ -93,6 +99,7 @@ class ChatService:
         self._settings = settings
         self._rewriter = rewriter
         self._catalog = dict(department_catalog or {})
+        self._sql_tool = sql_tool
 
     # ---------- public API ----------
 
@@ -149,12 +156,25 @@ class ChatService:
         search_query = question
         if recent and self._rewriter is not None:
             search_query = self._rewriter.rewrite(question, recent)
-        hits = self._retriever.retrieve(search_query, scope, limit=self._settings.retrieval_top_k)
+
+        # Analytical questions over structured data get an exact SQL result as
+        # source [1]; documents fill the remaining slots (policies, context).
+        top_k = self._settings.retrieval_top_k
+        sql_hits: list[SearchHit] = []
+        if self._sql_tool is not None and looks_analytical(search_query):
+            structured = self._sql_tool.answer(search_query, scope)
+            if structured is not None:
+                sql_hits = [as_search_hit(structured)]
+        doc_hits = self._retriever.retrieve(search_query, scope, limit=top_k - len(sql_hits))
+        # The RBAC guard re-checks everything, including the SQL result.
+        hits = enforce_scope([*sql_hits, *doc_hits], scope)
+        route = "sql+docs" if sql_hits else "docs"
         restricted = {d: desc for d, desc in self._catalog.items() if d not in scope.departments}
         system = build_system_prompt(
             user.full_name, scope.display_name, sorted(scope.departments), restricted
         )
-        return _Prepared(hits, build_messages(system, question, hits, recent), search_query)
+        messages = build_messages(system, question, hits, recent)
+        return _Prepared(hits, messages, search_query, route)
 
     def _no_context(self, scope: AccessScope, started: float, search_query: str) -> ChatAnswer:
         departments = format_departments(sorted(scope.departments))
@@ -190,12 +210,14 @@ class ChatService:
             model=self._llm.model_name,
             latency_ms=_elapsed_ms(started),
             search_query=prepared.search_query,
+            route=prepared.route,
         )
         logger.info(
             "chat_answer",
             extra={
                 "role": scope.role,
                 "retrieved": len(hits),
+                "route": prepared.route,
                 "cited": sorted(cited),
                 "latency_ms": result.latency_ms,
             },

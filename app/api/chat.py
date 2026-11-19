@@ -59,6 +59,7 @@ class ChatResponse(BaseModel):
     latency_ms: int
     role: str
     search_query: str = Field(description="What was searched (follow-ups are rewritten)")
+    route: str = Field(description='"docs", or "sql+docs" when a SQL result was a source')
 
 
 def _to_response(result: ChatAnswer, role: str) -> ChatResponse:
@@ -82,6 +83,7 @@ def _to_response(result: ChatAnswer, role: str) -> ChatResponse:
         latency_ms=result.latency_ms,
         role=role,
         search_query=result.search_query,
+        route=result.route,
     )
 
 

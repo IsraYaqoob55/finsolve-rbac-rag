@@ -187,3 +187,26 @@ The four quarterly marketing reports share one template, and finance reports cov
 - **Out-of-scope questions** get a clear answer ("your role (Employee) does not have access… contact HR") instead of a vague "not found". Only department *names and descriptions* are given to the model, never their contents.
 - **Ambiguous questions** get a clarifying question (e.g. two employees named Isha Chowdhury → "which one?").
 - **Vague questions** get a short overview plus suggested follow-up questions.
+
+## Structured questions (text-to-SQL)
+Retrieval sees only the top few chunks, so it cannot count, average or rank across 100 employee rows. Questions like *"average attendance by department"*, *"top 5 highest paid in Finance"* or *"who reports to Aadhya Patel?"* go to a text-to-SQL tool instead:
+
+```
+analytical question? ─▶ role may query a dataset? ─▶ LLM writes SQL (schema + exact category values)
+   ─▶ locked-down SQLite ─▶ error? send it back, LLM fixes the query (one retry)
+   ─▶ result table becomes source [1] (with the SQL shown) + documents fill the other slots ─▶ cited answer
+```
+If the question doesn't fit SQL, the model answers `NO_SQL` and the normal document search is used. Datasets are declared in [`config/datasets.yaml`](config/datasets.yaml); each one belongs to a department, so **only HR and C-Level can query HR data**. For other roles the schema is never even shown to the model.
+
+**Running AI-written SQL safely: layered, enforced by the database itself**
+
+| Layer | Protects against |
+|---|---|
+| RBAC check before generation | Roles without access never get SQL, or even the schema |
+| Private in-memory SQLite copy of the CSV | Any query touching real files or the user database |
+| SQLite authorizer: only `SELECT`, reads of allowed tables, allow-listed functions | `DROP`/`INSERT`/`UPDATE`/`DELETE` (even hidden in `WITH ...`), `ATTACH`, `PRAGMA`, system tables, `randomblob`/`zeroblob` memory bombs, `load_extension`, recursive CTEs |
+| `PRAGMA query_only` | Writes, as a second barrier |
+| One statement, 2 s time limit, 200-row cap | Stacked queries, runaway joins, huge results |
+| Validated identifiers in `datasets.yaml` | Injection through configuration |
+
+The engine has a test suite of 15 attack queries, and a check that the data is unchanged afterwards.

@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-DocType = Literal["markdown", "csv_row"]
+DocType = Literal["markdown", "csv_row", "sql_result"]
 
 
 class Document(BaseModel):

@@ -87,6 +87,8 @@ def render_answer_footer(result: ChatResult, question: str = "") -> None:
     if result.search_query and result.search_query.strip() != question.strip():
         # A follow-up was rewritten into a standalone search: show it for transparency.
         parts.insert(0, f"🔎 searched for: “{result.search_query}”")
+    if result.route == "sql+docs":
+        parts.insert(0, "🧮 computed with SQL")
     if result.model:
         parts.append(result.model)
     st.caption(" · ".join(parts))

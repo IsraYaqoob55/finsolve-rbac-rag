@@ -1,0 +1,30 @@
+# Structured datasets the assistant can query with SQL (Phase 6).
+#
+# Each dataset becomes one read-only table in an in-memory SQLite database.
+# `department` ties it to RBAC: only roles that can access that department
+# can query it (here: hr and c_level). Column descriptions and the listed
+# categorical values are shown to the LLM so it writes correct SQL.
+
+datasets:
+  employees:
+    department: hr
+    source: data/hr/hr_data.csv
+    description: >-
+      One row per FinSolve employee (100 rows): role, department, location,
+      dates, salary, leave, attendance and performance.
+    columns:
+      employee_id:        {type: TEXT, description: "Unique id like FINEMP1001"}
+      full_name:          {type: TEXT, description: "Full name; NOT unique, several people share names"}
+      role:               {type: TEXT, description: "Job title", categorical: true}
+      department:         {type: TEXT, description: "Department the employee works in", categorical: true}
+      email:              {type: TEXT, description: "Work email"}
+      location:           {type: TEXT, description: "Office city", categorical: true}
+      date_of_birth:      {type: DATE, description: "YYYY-MM-DD"}
+      date_of_joining:    {type: DATE, description: "YYYY-MM-DD"}
+      manager_id:         {type: TEXT, description: "employee_id of the manager (join employees to itself for names)"}
+      salary:             {type: REAL, description: "Annual salary in INR"}
+      leave_balance:      {type: INTEGER, description: "Leave days remaining"}
+      leaves_taken:       {type: INTEGER, description: "Leave days taken"}
+      attendance_pct:     {type: REAL, description: "Attendance percentage, 0-100"}
+      performance_rating: {type: INTEGER, description: "1 (lowest) to 5 (highest)", categorical: true}
+      last_review_date:   {type: DATE, description: "YYYY-MM-DD"}

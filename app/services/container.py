@@ -7,10 +7,12 @@ passing a different factory to ``create_app``.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from app.auth.user_store import UserStore
 from app.core.config import Settings
+from app.llm.base import LLMProvider
 from app.nlp.rewriter import QueryRewriter
 from app.rbac.policy import RolePolicy
 from app.retrieval.embeddings import Embedder, SparseEmbedder
@@ -18,6 +20,9 @@ from app.retrieval.reranker import Reranker
 from app.retrieval.retriever import RetrievalOptions, SecureRetriever
 from app.retrieval.vector_store import QdrantVectorStore
 from app.services.chat_service import ChatService
+from app.structured.datasets import load_datasets
+from app.structured.sql_engine import SafeSQLDatabase
+from app.structured.sql_tool import SQLTool
 
 # Named retrieval configurations, used by the evaluation script to measure
 # what each layer contributes (each entry overrides Settings fields).
@@ -132,11 +137,34 @@ def build_services(settings: Settings) -> Services:
     retriever = components.retriever(settings)
     llm = OpenAICompatibleProvider.from_settings(settings)
     rewriter = QueryRewriter(llm) if settings.query_rewrite else None
+    sql_tool = build_sql_tool(settings, llm, policy) if settings.sql_enabled else None
     return Services(
         settings=settings,
         policy=policy,
         users=UserStore(settings.resolve(settings.user_db_path)),
         store=components.store,
         retriever=retriever,
-        chat=ChatService(retriever, llm, settings, rewriter, policy.departments),
+        chat=ChatService(retriever, llm, settings, rewriter, policy.departments, sql_tool),
+    )
+
+
+def build_sql_tool(settings: Settings, llm: LLMProvider, policy: RolePolicy) -> SQLTool:
+    """Load the structured datasets into the locked-down SQL engine."""
+    datasets = load_datasets(settings.resolve(settings.datasets_config))
+    unknown = {s.department for s in datasets.values()} - set(policy.departments)
+    if unknown:  # a dataset nobody could access, or a typo: fail fast
+        raise RuntimeError(f"datasets.yaml uses departments not in roles.yaml: {sorted(unknown)}")
+    database = SafeSQLDatabase(
+        datasets,
+        base_dir=settings.resolve(Path(".")),
+        max_rows=settings.sql_max_rows,
+        timeout_seconds=settings.sql_timeout_seconds,
+    )
+    data_dir = settings.resolve(settings.data_dir)
+    sources = {
+        name: settings.resolve(spec.source).relative_to(data_dir).as_posix()
+        for name, spec in datasets.items()
+    }
+    return SQLTool(
+        database, llm, {name: spec.department for name, spec in datasets.items()}, sources
     )

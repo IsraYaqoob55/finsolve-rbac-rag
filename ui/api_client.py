@@ -57,6 +57,7 @@ class ChatResult:
     model: str | None = None
     latency_ms: int = 0
     search_query: str = ""
+    route: str = "docs"
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ def _parse_result(data: dict[str, Any]) -> ChatResult:
         model=data.get("model"),
         latency_ms=data.get("latency_ms", 0),
         search_query=data.get("search_query", ""),
+        route=data.get("route", "docs"),
     )
 
 

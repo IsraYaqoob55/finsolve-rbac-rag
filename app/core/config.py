@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     retrieval_candidates: int = Field(default=10, ge=1, le=200)
     query_rewrite: bool = True  # rewrite follow-ups into standalone questions
 
+    # --- Structured data / SQL (Phase 6) ---
+    sql_enabled: bool = True
+    datasets_config: Path = Path("config/datasets.yaml")
+    sql_max_rows: int = Field(default=200, ge=1, le=5000)
+    sql_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+
     # --- Chat / RAG ---
     retrieval_top_k: int = Field(default=6, ge=1, le=20)
     chat_history_messages: int = Field(default=6, ge=0)  # previous turns sent to the LLM

@@ -51,20 +51,21 @@ class FakeLLM:
 
     def reset(self) -> None:
         self.reply = "Revenue was $2.4 billion [1]. Net income rose [2][1]."
+        self.script: list[str] = []  # replies used first, in order (then `reply`)
         self.error: Exception | None = None
         self.calls: list[list[Message]] = []
 
-    def complete(self, messages: Sequence[Message]) -> str:
+    def _next(self, messages: Sequence[Message]) -> str:
         self.calls.append(list(messages))
         if self.error:
             raise self.error
-        return self.reply
+        return self.script.pop(0) if self.script else self.reply
+
+    def complete(self, messages: Sequence[Message]) -> str:
+        return self._next(messages)
 
     def stream(self, messages: Sequence[Message]) -> Iterator[str]:
-        self.calls.append(list(messages))
-        if self.error:
-            raise self.error
-        for word in self.reply.split(" "):
+        for word in self._next(messages).split(" "):
             yield word + " "
 
 

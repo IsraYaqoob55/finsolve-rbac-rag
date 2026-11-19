@@ -22,6 +22,7 @@ from app.rbac.policy import RolePolicy
 from app.retrieval.retriever import SecureRetriever
 from app.retrieval.vector_store import QdrantVectorStore
 from app.services.chat_service import ChatService
+from app.services.container import build_sql_tool
 from tests.fakes import DIM, FakeEmbedder, FakeLLM, FakeReranker, FakeSparseEmbedder
 
 TEST_PASSWORD = "test-password-123"  # noqa: S105 - test-only credential
@@ -51,8 +52,14 @@ class SessionServices:
         self.reranker = FakeReranker()
         self.retriever = SecureRetriever(self.store, embedder, sparse, self.reranker)
         self.llm = FakeLLM()
+        self.sql_tool = build_sql_tool(settings, self.llm, self.policy)  # real HR data
         self.chat = ChatService(
-            self.retriever, self.llm, settings, QueryRewriter(self.llm), self.policy.departments
+            self.retriever,
+            self.llm,
+            settings,
+            QueryRewriter(self.llm),
+            self.policy.departments,
+            self.sql_tool,
         )
 
     def close(self) -> None:

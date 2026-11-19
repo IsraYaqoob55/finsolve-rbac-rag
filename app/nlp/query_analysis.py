@@ -29,3 +29,26 @@ def detect_quarters(question: str) -> tuple[str, ...]:
         if quarter not in ordered:
             ordered.append(quarter)
     return tuple(ordered)
+
+
+# Signals that a question needs computation over rows (counting, averaging,
+# ranking, filtering lists) rather than reading a passage. Deliberately broad:
+# a false positive only costs one LLM call, which answers NO_SQL and falls
+# back to document search.
+_ANALYTICAL = re.compile(
+    r"\b("
+    r"average|avg|mean|median|how many|number of|count|total|sum of|"
+    r"list (?:all|the|of)|top \d+|bottom \d+|highest|lowest|most|least|maximum|minimum|"
+    r"rank|ranking|distribution|breakdown|percentage of|"
+    r"(?:by|per|each|every|across) (?:department|location|city|role|rating|team|office)|"
+    r"which employees|who (?:has|have|are|joined|earns?|works?)|"
+    r"employees (?:in|with|who|whose|from|at|joined)|"
+    r"joined (?:in|after|before|between)|reports? to|headcount|older than|younger than"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def looks_analytical(question: str) -> bool:
+    """True if the question probably needs SQL over structured data."""
+    return bool(_ANALYTICAL.search(question))
