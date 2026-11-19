@@ -59,9 +59,22 @@ class Settings(BaseSettings):
     chunk_min_section_chars: int = Field(default=300, ge=0)
 
     # --- LLM ---
-    llm_provider: Literal["groq", "openai", "anthropic", "ollama"] = "groq"
-    llm_model: str = "llama-3.3-70b-versatile"
+    # Any OpenAI-compatible API works; the provider name picks a default base URL.
+    llm_provider: Literal["groq", "openai", "ollama"] = "groq"
+    llm_model: str = "openai/gpt-oss-120b"
+    # For reasoning models only (e.g. gpt-oss): "low" | "medium" | "high". None = don't send.
+    llm_reasoning_effort: Literal["low", "medium", "high"] | None = None
     llm_api_key: SecretStr | None = None  # SecretStr hides the value in logs/reprs
+    llm_base_url: str | None = None  # override the provider's default endpoint
+    llm_temperature: float = Field(default=0.1, ge=0, le=2)  # low = factual, repeatable
+    # Reasoning models spend part of this budget "thinking" before answering.
+    llm_max_tokens: int = Field(default=1500, gt=0)
+    llm_timeout_seconds: float = Field(default=30, gt=0)
+    llm_max_retries: int = Field(default=2, ge=0)
+
+    # --- Chat / RAG ---
+    retrieval_top_k: int = Field(default=6, ge=1, le=20)
+    chat_history_messages: int = Field(default=6, ge=0)  # previous turns sent to the LLM
 
     # --- Auth ---
     jwt_secret_key: SecretStr = SecretStr(DEFAULT_JWT_SECRET)
@@ -73,7 +86,13 @@ class Settings(BaseSettings):
     seed_user_password: SecretStr | None = None
 
     @field_validator(
-        "qdrant_url", "qdrant_api_key", "llm_api_key", "seed_user_password", mode="before"
+        "qdrant_url",
+        "qdrant_api_key",
+        "llm_api_key",
+        "llm_base_url",
+        "llm_reasoning_effort",
+        "seed_user_password",
+        mode="before",
     )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:

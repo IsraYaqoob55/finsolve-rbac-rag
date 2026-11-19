@@ -13,6 +13,7 @@ from app.core.config import Settings
 from app.rbac.policy import RolePolicy
 from app.retrieval.retriever import SecureRetriever
 from app.retrieval.vector_store import QdrantVectorStore
+from app.services.chat_service import ChatService
 
 
 @dataclass
@@ -22,6 +23,7 @@ class Services:
     users: UserStore
     store: QdrantVectorStore
     retriever: SecureRetriever
+    chat: ChatService
 
     def close(self) -> None:
         self.store.close()
@@ -32,7 +34,8 @@ ServicesFactory = Callable[[Settings], Services]
 
 
 def build_services(settings: Settings) -> Services:
-    """Build the real services (embedding model, Qdrant, SQLite)."""
+    """Build the real services (embedding model, Qdrant, SQLite, LLM client)."""
+    from app.llm.openai_compatible import OpenAICompatibleProvider
     from app.retrieval.embeddings import FastEmbedEmbedder
     from app.retrieval.vector_store import build_client
 
@@ -45,10 +48,13 @@ def build_services(settings: Settings) -> Services:
     store = QdrantVectorStore(
         build_client(settings), settings.qdrant_collection, embedder.dimension
     )
+    retriever = SecureRetriever(store, embedder)
+    llm = OpenAICompatibleProvider.from_settings(settings)
     return Services(
         settings=settings,
         policy=policy,
         users=UserStore(settings.resolve(settings.user_db_path)),
         store=store,
-        retriever=SecureRetriever(store, embedder),
+        retriever=retriever,
+        chat=ChatService(retriever, llm, settings),
     )

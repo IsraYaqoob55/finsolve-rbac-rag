@@ -2,7 +2,7 @@
 
 An internal chatbot for FinSolve Technologies. It uses Retrieval-Augmented Generation (RAG) with **role-based access control**: each user sees only the data their role permits, and every answer cites its source document.
 
-**Stack:** Python · FastAPI · Qdrant · Streamlit · LLM (pluggable)
+**Stack:** Python · FastAPI · Qdrant · fastembed (BGE) · Groq `gpt-oss-120b` (any OpenAI-compatible LLM) · Streamlit
 
 > 🚧 Work in progress. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full roadmap.
 
@@ -40,6 +40,7 @@ pre-commit install
 
 # 4. Configure environment
 copy .env.example .env          # Windows  (cp on macOS / Linux)
+# then set LLM_API_KEY (free key: https://console.groq.com/keys)
 
 # 5. Index documents and create demo users
 python -m app.ingestion.pipeline
@@ -128,7 +129,19 @@ Open http://127.0.0.1:8000/docs, click **Authorize**, and log in as a demo user.
 |---|---|---|
 | POST | `/auth/login` | Username + password → bearer token |
 | GET | `/auth/me` | Your profile, role and accessible departments |
+| POST | `/chat` | Ask a question, get a grounded answer with `[n]` citations and its sources |
+| POST | `/chat/stream` | Same, streamed as Server-Sent Events (`token` … `done`, or `error`) |
 | POST | `/search` | Semantic search limited to your role's departments, with source references |
 | GET | `/health` | Liveness check |
 
 User admin: `python -m app.auth.manage {seed,list,create,set-role,disable,enable}`.
+
+## How an answer is generated
+```
+question ─▶ SecureRetriever (top-k chunks, filtered by role) ─▶ prompt: rules + numbered <source> blocks + question
+         ─▶ LLM ─▶ answer with [n] citations ─▶ map [n] back to documents/sections ─▶ response
+```
+- **Grounded:** the model may only use the numbered sources and must say "not found" rather than guess. If retrieval returns nothing the role may see, no LLM call is made.
+- **Cited:** every fact carries `[n]`; the API marks which sources were actually cited.
+- **Injection-aware:** source text is wrapped in `<source>` tags and declared to be data. Clients can send only `user`/`assistant` history, never `system`.
+- **Provider-agnostic:** one OpenAI-compatible client covers Groq, OpenAI and Ollama; switching is a `.env` change (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`).

@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import auth, health, search
+from app.api import auth, chat, health, search
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.services.container import ServicesFactory, build_services
@@ -49,6 +49,7 @@ def create_app(
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(search.router)
+    app.include_router(chat.router)
     return app
 
 

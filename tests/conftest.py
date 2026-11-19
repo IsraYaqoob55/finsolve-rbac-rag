@@ -20,7 +20,8 @@ from app.main import create_app
 from app.rbac.policy import RolePolicy
 from app.retrieval.retriever import SecureRetriever
 from app.retrieval.vector_store import QdrantVectorStore
-from tests.fakes import DIM, FakeEmbedder
+from app.services.chat_service import ChatService
+from tests.fakes import DIM, FakeEmbedder, FakeLLM
 
 TEST_PASSWORD = "test-password-123"  # noqa: S105 - test-only credential
 ROLE_USERS = {
@@ -46,6 +47,8 @@ class SessionServices:
         self.store = QdrantVectorStore(QdrantClient(":memory:"), "test", DIM)
         run_ingestion(settings, self.store, embedder)  # real data/ folder
         self.retriever = SecureRetriever(self.store, embedder)
+        self.llm = FakeLLM()
+        self.chat = ChatService(self.retriever, self.llm, settings)
 
     def close(self) -> None:
         pass
@@ -86,6 +89,13 @@ def login(client: TestClient, username: str, password: str = TEST_PASSWORD) -> s
 
 def auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def fake_llm(services: SessionServices) -> FakeLLM:
+    """The session's fake LLM, reset to its default reply for each test."""
+    services.llm.reset()
+    return services.llm
 
 
 @pytest.fixture(scope="session")

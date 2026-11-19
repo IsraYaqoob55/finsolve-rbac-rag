@@ -22,6 +22,8 @@ dependencies = [
     "bcrypt>=4.2",
     "pyyaml>=6.0",
     "python-multipart>=0.0.9",  # needed by FastAPI's OAuth2 login form
+    # Phase 3: LLM client (OpenAI-compatible API: Groq, OpenAI, Ollama, ...)
+    "openai>=1.50",
 ]
 
 [project.optional-dependencies]

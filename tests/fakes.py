@@ -3,7 +3,9 @@
 import hashlib
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+
+from app.llm.base import Message
 
 DIM = 64
 
@@ -30,3 +32,34 @@ class FakeEmbedder:
 
     def embed_query(self, text: str) -> list[float]:
         return self._embed(text)
+
+
+class FakeLLM:
+    """Scripted LLM that records what it was sent.
+
+    Tests set ``reply`` (or ``error``) and then inspect ``calls`` to see the
+    exact prompt, e.g. to prove no out-of-scope document reached the model.
+    """
+
+    model_name = "fake-llm"
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        self.reply = "Revenue was $2.4 billion [1]. Net income rose [2][1]."
+        self.error: Exception | None = None
+        self.calls: list[list[Message]] = []
+
+    def complete(self, messages: Sequence[Message]) -> str:
+        self.calls.append(list(messages))
+        if self.error:
+            raise self.error
+        return self.reply
+
+    def stream(self, messages: Sequence[Message]) -> Iterator[str]:
+        self.calls.append(list(messages))
+        if self.error:
+            raise self.error
+        for word in self.reply.split(" "):
+            yield word + " "
