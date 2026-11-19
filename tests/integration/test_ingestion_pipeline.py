@@ -3,10 +3,7 @@
 No model download, no disk storage: these run in milliseconds in CI.
 """
 
-import hashlib
-import math
-import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -15,28 +12,7 @@ from qdrant_client import QdrantClient
 from app.core.config import Settings
 from app.ingestion.pipeline import IngestionReport, run_ingestion
 from app.retrieval.vector_store import QdrantVectorStore
-
-DIM = 64
-
-
-class FakeEmbedder:
-    """Bag-of-words hashing embedder: texts sharing words get similar vectors."""
-
-    dimension = DIM
-
-    def _embed(self, text: str) -> list[float]:
-        vector = [0.0] * DIM
-        for word in re.findall(r"\w+", text.lower()):
-            bucket = int(hashlib.md5(word.encode()).hexdigest(), 16) % DIM  # noqa: S324
-            vector[bucket] += 1.0
-        norm = math.sqrt(sum(v * v for v in vector)) or 1.0
-        return [v / norm for v in vector]
-
-    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
-        return [self._embed(t) for t in texts]
-
-    def embed_query(self, text: str) -> list[float]:
-        return self._embed(text)
+from tests.fakes import DIM, FakeEmbedder
 
 
 @pytest.fixture

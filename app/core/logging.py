@@ -10,7 +10,8 @@ import logging
 import sys
 from datetime import UTC, datetime
 
-_STANDARD_ATTRS = set(vars(logging.makeLogRecord({})))
+# Attributes every LogRecord has, plus ones Formatter.format() adds while formatting.
+_STANDARD_ATTRS = set(vars(logging.makeLogRecord({}))) | {"message", "asctime"}
 
 
 class JsonFormatter(logging.Formatter):
@@ -32,6 +33,24 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+class ReadableFormatter(logging.Formatter):
+    """Human-friendly one-line logs that also show ``extra=`` fields as key=value."""
+
+    def __init__(self) -> None:
+        super().__init__("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s")
+
+    def format(self, record: logging.LogRecord) -> str:
+        line = super().format(record)
+        extras = {
+            k: v
+            for k, v in vars(record).items()
+            if k not in _STANDARD_ATTRS and not k.startswith("_")
+        }
+        if extras:
+            line += " | " + " ".join(f"{k}={v}" for k, v in extras.items())
+        return line
+
+
 def ensure_utf8_console() -> None:
     """Let command-line tools print any character (e.g. the rupee sign).
 
@@ -50,9 +69,7 @@ def setup_logging(level: str = "INFO", json_logs: bool = False) -> None:
     if json_logs:
         handler.setFormatter(JsonFormatter())
     else:
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s")
-        )
+        handler.setFormatter(ReadableFormatter())
     root = logging.getLogger()
     root.handlers.clear()  # avoid duplicate logs on reload
     root.addHandler(handler)

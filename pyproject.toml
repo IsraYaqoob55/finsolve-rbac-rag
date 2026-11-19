@@ -17,6 +17,11 @@ dependencies = [
     # Phase 1: vector store + local embeddings (ONNX, no PyTorch needed)
     "qdrant-client>=1.12",
     "fastembed>=0.4",
+    # Phase 2: auth + RBAC
+    "pyjwt>=2.9",
+    "bcrypt>=4.2",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.9",  # needed by FastAPI's OAuth2 login form
 ]
 
 [project.optional-dependencies]
@@ -28,6 +33,7 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "pre-commit>=3.8",
+    "types-PyYAML>=6.0",
 ]
 
 [tool.setuptools.packages.find]

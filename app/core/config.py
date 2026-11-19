@@ -10,11 +10,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root = two levels up from this file (app/core/config.py -> project/)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_JWT_SECRET = "change-me-to-a-long-random-string"  # noqa: S105 - placeholder, rejected in prod
 
 
 class Settings(BaseSettings):
@@ -63,14 +64,31 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None  # SecretStr hides the value in logs/reprs
 
     # --- Auth ---
-    jwt_secret_key: SecretStr = SecretStr("change-me-to-a-long-random-string")
+    jwt_secret_key: SecretStr = SecretStr(DEFAULT_JWT_SECRET)
+    jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
     jwt_expire_minutes: int = Field(default=60, gt=0)
+    user_db_path: Path = Path("var/users.db")
+    seed_users_config: Path = Path("config/users.seed.yaml")
+    # Password given to demo users by `python -m app.auth.manage seed`.
+    seed_user_password: SecretStr | None = None
 
-    @field_validator("qdrant_url", "qdrant_api_key", "llm_api_key", mode="before")
+    @field_validator(
+        "qdrant_url", "qdrant_api_key", "llm_api_key", "seed_user_password", mode="before"
+    )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         """Treat ``KEY=`` (empty value in .env) as "not set"."""
         return None if isinstance(value, str) and not value.strip() else value
+
+    @model_validator(mode="after")
+    def _no_default_secret_in_production(self) -> "Settings":
+        """Fail fast: never run production with the placeholder JWT secret."""
+        if self.app_env == "production" and (
+            self.jwt_secret_key.get_secret_value() == DEFAULT_JWT_SECRET
+            or len(self.jwt_secret_key.get_secret_value()) < 32
+        ):
+            raise ValueError("JWT_SECRET_KEY must be set to a random value of 32+ characters")
+        return self
 
     def resolve(self, path: Path) -> Path:
         """Return ``path`` as an absolute path anchored at the project root."""

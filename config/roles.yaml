@@ -1,0 +1,47 @@
+# Role-based access control policy.
+#
+# - `departments` is the registry of every data department (= folder under data/).
+#   A role can only reference departments listed here; typos fail at startup.
+# - `roles.<name>.departments` lists what that role may read. "*" means every
+#   department in the registry (expanded to an explicit list, so search is
+#   always filtered).
+# - Adding a role or department = editing this file. No code changes.
+
+departments:
+  general: Company-wide policies, benefits, events and FAQs
+  engineering: Technical architecture, development processes, operations
+  finance: Financial reports, expenses, reimbursements, cash flow
+  marketing: Campaign performance, customer feedback, sales metrics
+  hr: Employee records, attendance, payroll, performance reviews
+
+roles:
+  employee:
+    display_name: Employee
+    description: General company information only
+    departments: [general]
+
+  engineering:
+    display_name: Engineering
+    description: Technical documentation plus general information
+    departments: [engineering, general]
+
+  marketing:
+    display_name: Marketing
+    description: Marketing reports plus general information
+    departments: [marketing, general]
+
+  finance:
+    display_name: Finance
+    # Finance needs marketing spend / vendor costs for budgeting.
+    description: Financial reports, marketing expenses, plus general information
+    departments: [finance, marketing, general]
+
+  hr:
+    display_name: Human Resources
+    description: Employee data plus general information
+    departments: [hr, general]
+
+  c_level:
+    display_name: C-Level Executive
+    description: Full access to all company data
+    departments: ["*"]

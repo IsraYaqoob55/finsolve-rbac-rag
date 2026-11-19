@@ -1,0 +1,21 @@
+# Demo users, one per role. Created by:  python -m app.auth.manage seed
+# Passwords are NOT stored here: every demo user gets SEED_USER_PASSWORD from .env.
+users:
+  - username: alice_emp
+    full_name: Alice Fernandes
+    role: employee
+  - username: ravi_eng
+    full_name: Ravi Iyer
+    role: engineering
+  - username: meera_mkt
+    full_name: Meera Kapoor
+    role: marketing
+  - username: kabir_fin
+    full_name: Kabir Shah
+    role: finance
+  - username: sara_hr
+    full_name: Sara Khan
+    role: hr
+  - username: tony_ceo
+    full_name: Tony Sharma
+    role: c_level

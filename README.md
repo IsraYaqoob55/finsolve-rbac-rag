@@ -7,14 +7,18 @@ An internal chatbot for FinSolve Technologies. It uses Retrieval-Augmented Gener
 > 🚧 Work in progress. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full roadmap.
 
 ## Roles
-| Role | Data access |
-|---|---|
-| Employee | General (handbook, policies, FAQs) |
-| Engineering | Engineering + General |
-| Marketing | Marketing + General |
-| Finance | Finance + Marketing + General |
-| HR | HR + General |
-| C-Level | Everything |
+Defined in [`config/roles.yaml`](config/roles.yaml); adding a role or department is a config change, not a code change.
+
+| Role | Data access | Demo user |
+|---|---|---|
+| Employee | General (handbook, policies, FAQs) | `alice_emp` |
+| Engineering | Engineering + General | `ravi_eng` |
+| Marketing | Marketing + General | `meera_mkt` |
+| Finance | Finance + Marketing + General | `kabir_fin` |
+| HR | HR + General | `sara_hr` |
+| C-Level | Everything | `tony_ceo` |
+
+All demo users share the password set in `SEED_USER_PASSWORD` (see `.env.example`).
 
 ## Getting started (development)
 
@@ -37,9 +41,14 @@ pre-commit install
 # 4. Configure environment
 copy .env.example .env          # Windows  (cp on macOS / Linux)
 
-# 5. Run the API
+# 5. Index documents and create demo users
+python -m app.ingestion.pipeline
+python -m app.auth.manage seed
+
+# 6. Run the API
 uvicorn app.main:app --reload
 ```
+> Embedded Qdrant allows one process at a time: stop the API before re-running the ingestion pipeline (a Qdrant server, used in Docker, has no such limit).
 
 Open http://127.0.0.1:8000/health or the interactive API docs at http://127.0.0.1:8000/docs.
 
@@ -96,3 +105,30 @@ data/<department>/<file>  ──load──▶  Document  ──chunk──▶  C
 |---|---|---|
 | Embeddings | `BAAI/bge-small-en-v1.5` via fastembed (ONNX) | Strong quality for its size, runs locally on CPU, no PyTorch, no API cost |
 | Vector DB | Qdrant (embedded locally, server in production) | Fast payload filtering, which RBAC depends on |
+
+## Security model
+```
+login ─▶ bcrypt check ─▶ JWT ─▶ every request: verify token ─▶ reload user from DB ─▶ role ─▶ AccessScope
+                                                                                         │
+             Qdrant search with filter department ∈ scope ◀───────────────────────────────┘
+                              │
+                     RBAC guard re-checks every chunk ─▶ response
+```
+- **Access control happens in retrieval, not in the prompt.** Out-of-scope chunks are filtered inside the vector database, so they never reach the LLM and can't be leaked by prompt injection.
+- **Defence in depth.** A guard re-checks each retrieved chunk's department and logs a security event if anything slips through.
+- **Deny by default.** Unknown roles get HTTP 403, `"*"` expands to an explicit department list, and the policy is validated at startup (typos in department names fail fast).
+- **Instant revocation.** The user record is re-read on every request, so disabling a user or changing their role applies even to tokens already issued.
+- **Credential hygiene.** bcrypt hashes; the same error for unknown user and wrong password, with equal timing; pinned JWT algorithm (no `alg: none`); the app refuses to start in production with the placeholder JWT secret.
+- **Tested.** 54 leak tests (9 adversarial queries × 6 roles) check the access matrix from the problem statement, written independently of the config.
+
+## API
+Open http://127.0.0.1:8000/docs, click **Authorize**, and log in as a demo user.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/auth/login` | Username + password → bearer token |
+| GET | `/auth/me` | Your profile, role and accessible departments |
+| POST | `/search` | Semantic search limited to your role's departments, with source references |
+| GET | `/health` | Liveness check |
+
+User admin: `python -m app.auth.manage {seed,list,create,set-role,disable,enable}`.
