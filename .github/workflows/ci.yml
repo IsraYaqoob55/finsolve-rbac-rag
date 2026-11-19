@@ -28,7 +28,7 @@ jobs:
         run: ruff format --check .
 
       - name: Type check (mypy)
-        run: mypy app ui
+        run: mypy app ui eval
 
       - name: Tests (pytest)
         run: pytest --cov=app --cov-report=term-missing

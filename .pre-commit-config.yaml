@@ -29,7 +29,7 @@ repos:
         types: [python]
       - id: mypy
         name: mypy
-        entry: mypy app ui
+        entry: mypy app ui eval
         language: system
         types: [python]
         pass_filenames: false
