@@ -30,5 +30,7 @@ jobs:
       - name: Type check (mypy)
         run: mypy app ui eval
 
+      # The build fails if coverage drops below 85% (currently ~87%).
+      # Live LLM evaluation (eval/answer_eval.py) is run manually: it needs an API key.
       - name: Tests (pytest)
-        run: pytest --cov=app --cov-report=term-missing
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=85

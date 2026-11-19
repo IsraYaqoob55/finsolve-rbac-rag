@@ -210,3 +210,24 @@ If the question doesn't fit SQL, the model answers `NO_SQL` and the normal docum
 | Validated identifiers in `datasets.yaml` | Injection through configuration |
 
 The engine has a test suite of 15 attack queries, and a check that the data is unchanged afterwards.
+
+## Answer quality (end-to-end evaluation)
+Retrieval metrics don't show whether the *final answer* is right, or whether data leaks. [`eval/answer_eval.py`](eval/answer_eval.py) runs 40 golden questions ([`eval/answer_golden.yaml`](eval/answer_golden.yaml)) through the real pipeline, as every role, covering factual, quarter, SQL, follow-up, ambiguous, vague, access-denied, prompt-injection and not-found cases.
+
+| Check | How | Result |
+|---|---|---|
+| Cases passed (all checks) | combined | **40 / 40** |
+| **Data leaks** | *canary* values that exist in only one department's files must never appear in another role's answer | **0** |
+| Sources outside the role | every retrieved source's department is checked | 0 |
+| Required facts | exact numbers/names, with number boundaries (`30 million` ≠ `$130 million`) | 100% |
+| Expected behaviour | answered / refused / clarified / not found, judged by a separate smaller model | 100% |
+| Faithfulness | every claim supported by the sources (LLM judge) | 90% |
+| Latency median / p95 | Groq free tier | 5.1 s / 11.5 s |
+
+Full report: [`docs/evaluation.md`](docs/evaluation.md). The scoring logic has its own unit tests, canaries are checked to be unique before every run, and the judge is a *different* model from the one answering. Findings from the evaluation led to prompt rules for conflicting sources (show both values and flag the discrepancy) and partial answers.
+
+```bash
+python -m eval.answer_eval            # needs LLM_API_KEY; ~15 min on the free tier
+python -m eval.answer_eval --only hr- --no-judge
+```
+The live evaluation is run manually (it needs an API key and is rate-limited); CI runs the unit and integration tests with an 85% coverage gate.
