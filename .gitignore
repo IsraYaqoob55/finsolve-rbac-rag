@@ -34,3 +34,6 @@ Thumbs.db
 
 # Local Claude Code preview config
 .claude/
+
+# Personal prep notes (video script, LinkedIn draft): local only
+notes/
