@@ -32,6 +32,18 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+def ensure_utf8_console() -> None:
+    """Let command-line tools print any character (e.g. the rupee sign).
+
+    The Windows console often defaults to an old code page (cp1252) and
+    crashes on characters outside it.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def setup_logging(level: str = "INFO", json_logs: bool = False) -> None:
     """Configure the root logger once at startup."""
     handler = logging.StreamHandler(sys.stdout)

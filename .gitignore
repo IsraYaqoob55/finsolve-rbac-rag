@@ -15,6 +15,7 @@ htmlcov/
 
 # Local stores / generated
 qdrant_storage/
+.cache/
 *.sqlite
 *.db
 logs/
