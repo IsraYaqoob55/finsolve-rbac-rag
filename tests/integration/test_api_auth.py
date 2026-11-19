@@ -32,6 +32,7 @@ def test_me_shows_role_and_accessible_departments(client: TestClient) -> None:
         "general",
         "marketing",
     ]
+    assert body["suggested_questions"]  # config-driven prompts for the UI
 
 
 @pytest.mark.parametrize(

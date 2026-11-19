@@ -34,8 +34,8 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # macOS / Linux
 
-# 3. Install the app + developer tools
-pip install -e ".[dev]"
+# 3. Install the app, the UI and developer tools
+pip install -e ".[dev,ui]"
 pre-commit install
 
 # 4. Configure environment
@@ -49,6 +49,11 @@ python -m app.auth.manage seed
 # 6. Run the API
 uvicorn app.main:app --reload
 ```
+Then, in a second terminal, start the chat UI and open http://localhost:8501:
+```bash
+streamlit run ui/streamlit_app.py
+```
+
 > Embedded Qdrant allows one process at a time: stop the API before re-running the ingestion pipeline (a Qdrant server, used in Docker, has no such limit).
 
 Open http://127.0.0.1:8000/health or the interactive API docs at http://127.0.0.1:8000/docs.
@@ -145,3 +150,11 @@ question ─▶ SecureRetriever (top-k chunks, filtered by role) ─▶ prompt: 
 - **Cited:** every fact carries `[n]`; the API marks which sources were actually cited.
 - **Injection-aware:** source text is wrapped in `<source>` tags and declared to be data. Clients can send only `user`/`assistant` history, never `system`.
 - **Provider-agnostic:** one OpenAI-compatible client covers Groq, OpenAI and Ollama; switching is a `.env` change (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`).
+
+## Chat UI
+A Streamlit app ([`ui/`](ui/)) that talks to the API over HTTP only. It never imports backend code, so UI and API deploy and scale separately (`API_BASE_URL` points it at the backend).
+
+- Login with friendly errors; the sidebar shows your role and the departments you can access.
+- Suggested questions per role (from `roles.yaml`) on an empty chat.
+- Streamed answers, follow-up questions with conversation history, and a **Sources** panel per answer (document, section, department, quarter, relevance, excerpt). A toggle also shows retrieved-but-uncited sources.
+- Expired sessions return to login. The session lives in the browser tab: refreshing the page logs you out (by design; the token is never put in the URL).

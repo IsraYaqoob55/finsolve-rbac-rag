@@ -21,6 +21,7 @@ class RoleDefinition(BaseModel):
     display_name: str
     description: str = ""
     departments: list[str] = Field(min_length=1)
+    suggested_questions: list[str] = Field(default_factory=list)
 
 
 class PolicyFile(BaseModel):

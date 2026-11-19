@@ -13,6 +13,14 @@
       "justMyCode": true
     },
     {
+      "name": "UI: Streamlit",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": ["run", "ui/streamlit_app.py"],
+      "justMyCode": true
+    },
+    {
       "name": "Tests: current file",
       "type": "debugpy",
       "request": "launch",

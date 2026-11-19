@@ -19,7 +19,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,ui]"
 
       - name: Lint (ruff)
         run: ruff check .
@@ -28,7 +28,7 @@ jobs:
         run: ruff format --check .
 
       - name: Type check (mypy)
-        run: mypy app
+        run: mypy app ui
 
       - name: Tests (pytest)
         run: pytest --cov=app --cov-report=term-missing

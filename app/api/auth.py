@@ -34,6 +34,7 @@ class MeResponse(BaseModel):
     role_display_name: str
     role_description: str
     accessible_departments: list[DepartmentInfo]
+    suggested_questions: list[str]
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -69,4 +70,5 @@ def me(user: CurrentUser, scope: Scope, services: ServicesDep) -> MeResponse:
         accessible_departments=[
             DepartmentInfo(name=d, description=descriptions[d]) for d in sorted(scope.departments)
         ],
+        suggested_questions=role.suggested_questions,
     )

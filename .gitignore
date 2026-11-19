@@ -30,3 +30,6 @@ Thumbs.db
 !.vscode/launch.json
 .idea/
 ~$*
+
+# Local Claude Code preview config
+.claude/

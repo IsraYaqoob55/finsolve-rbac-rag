@@ -19,29 +19,53 @@ roles:
     display_name: Employee
     description: General company information only
     departments: [general]
+    suggested_questions:
+      - How many sick and casual leave days do I get?
+      - What is the work-from-home policy?
+      - How does the employee referral program work?
 
   engineering:
     display_name: Engineering
     description: Technical documentation plus general information
     departments: [engineering, general]
+    suggested_questions:
+      - How does our CI/CD deployment work?
+      - Describe the microservices architecture.
+      - What are the code coverage and quality gates?
 
   marketing:
     display_name: Marketing
     description: Marketing reports plus general information
     departments: [marketing, general]
+    suggested_questions:
+      - What were the key marketing results of 2024?
+      - Which campaigns had the best ROI?
+      - What were the recommendations for Q1 2025?
 
   finance:
     display_name: Finance
     # Finance needs marketing spend / vendor costs for budgeting.
     description: Financial reports, marketing expenses, plus general information
     departments: [finance, marketing, general]
+    suggested_questions:
+      - Summarise revenue and net income for each quarter of 2024.
+      - What were the biggest expense categories in 2024?
+      - How much was spent on marketing vendor services?
 
   hr:
     display_name: Human Resources
     description: Employee data plus general information
     departments: [hr, general]
+    suggested_questions:
+      - When did Sakshi Malhotra join, and what is her role?
+      - What is Aadhya Patel's attendance and performance rating?
+      - What is the leave encashment policy?
 
   c_level:
     display_name: C-Level Executive
     description: Full access to all company data
     departments: ["*"]
+    suggested_questions:
+      - Give me a 2024 summary of revenue, marketing ROI and key risks.
+      - What are the main financial risks and mitigations?
+      - How is our technology platform architected?
