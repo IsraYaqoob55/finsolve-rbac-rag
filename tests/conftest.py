@@ -17,11 +17,12 @@ from app.auth.user_store import UserStore
 from app.core.config import Settings, get_settings
 from app.ingestion.pipeline import run_ingestion
 from app.main import create_app
+from app.nlp.rewriter import QueryRewriter
 from app.rbac.policy import RolePolicy
 from app.retrieval.retriever import SecureRetriever
 from app.retrieval.vector_store import QdrantVectorStore
 from app.services.chat_service import ChatService
-from tests.fakes import DIM, FakeEmbedder, FakeLLM
+from tests.fakes import DIM, FakeEmbedder, FakeLLM, FakeReranker, FakeSparseEmbedder
 
 TEST_PASSWORD = "test-password-123"  # noqa: S105 - test-only credential
 ROLE_USERS = {
@@ -43,12 +44,16 @@ class SessionServices:
         self.users = UserStore(":memory:")
         for role, username in ROLE_USERS.items():
             self.users.create(username, f"Test {role}", role, TEST_PASSWORD)
-        embedder = FakeEmbedder()
+        embedder, sparse = FakeEmbedder(), FakeSparseEmbedder()
         self.store = QdrantVectorStore(QdrantClient(":memory:"), "test", DIM)
-        run_ingestion(settings, self.store, embedder)  # real data/ folder
-        self.retriever = SecureRetriever(self.store, embedder)
+        run_ingestion(settings, self.store, embedder, sparse)  # real data/ folder
+        # The full production pipeline (hybrid + quarter boost + rerank), with fakes.
+        self.reranker = FakeReranker()
+        self.retriever = SecureRetriever(self.store, embedder, sparse, self.reranker)
         self.llm = FakeLLM()
-        self.chat = ChatService(self.retriever, self.llm, settings)
+        self.chat = ChatService(
+            self.retriever, self.llm, settings, QueryRewriter(self.llm), self.policy.departments
+        )
 
     def close(self) -> None:
         pass

@@ -56,6 +56,7 @@ class ChatResult:
     sources: list[Source] = field(default_factory=list)
     model: str | None = None
     latency_ms: int = 0
+    search_query: str = ""
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ def _parse_result(data: dict[str, Any]) -> ChatResult:
         sources=[Source(**s) for s in data.get("sources", [])],
         model=data.get("model"),
         latency_ms=data.get("latency_ms", 0),
+        search_query=data.get("search_query", ""),
     )
 
 

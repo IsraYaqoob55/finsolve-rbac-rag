@@ -12,7 +12,7 @@ from qdrant_client import QdrantClient
 from app.core.config import Settings
 from app.ingestion.pipeline import IngestionReport, run_ingestion
 from app.retrieval.vector_store import QdrantVectorStore
-from tests.fakes import DIM, FakeEmbedder
+from tests.fakes import DIM, FakeEmbedder, FakeSparseEmbedder
 
 
 @pytest.fixture
@@ -35,7 +35,9 @@ def store() -> Iterator[QdrantVectorStore]:
 
 
 def ingest(data_dir: Path, store: QdrantVectorStore, rebuild: bool = False) -> IngestionReport:
-    return run_ingestion(Settings(_env_file=None), store, FakeEmbedder(), data_dir, rebuild)
+    return run_ingestion(
+        Settings(_env_file=None), store, FakeEmbedder(), FakeSparseEmbedder(), data_dir, rebuild
+    )
 
 
 def test_first_run_indexes_every_file(data_dir: Path, store: QdrantVectorStore) -> None:

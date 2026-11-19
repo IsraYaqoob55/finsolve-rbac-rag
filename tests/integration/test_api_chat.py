@@ -169,3 +169,38 @@ def test_lenticular_citations_are_normalised_and_counted(
     body = ask(client, role_tokens["employee"], "sick leave")
     assert body["answer"] == "You get 12 sick days[2]."
     assert [s["number"] for s in body["sources"] if s["cited"]] == [2]
+
+
+def test_follow_up_searches_with_rewritten_query_but_answers_original(
+    client: TestClient, role_tokens: dict[str, str], fake_llm: FakeLLM
+) -> None:
+    history = [
+        {"role": "user", "content": "What was net income in Q3 2024?"},
+        {"role": "assistant", "content": "It was $300 million [1]."},
+    ]
+    # FakeLLM returns the same reply to both calls; the first call is the rewrite.
+    fake_llm.reply = "What was net income in Q4 2024?"
+    body = ask(client, role_tokens["finance"], "And Q4?", history=history)
+
+    assert body["search_query"] == "What was net income in Q4 2024?"
+    rewrite_call, answer_call = fake_llm.calls[-2], fake_llm.calls[-1]
+    assert rewrite_call[-1].content.endswith("Latest message: And Q4?")
+    assert answer_call[-1].content.endswith("Question: And Q4?")  # user's own words
+
+
+def test_first_question_is_not_rewritten(
+    client: TestClient, role_tokens: dict[str, str], fake_llm: FakeLLM
+) -> None:
+    body = ask(client, role_tokens["employee"], "What is the leave policy?")
+    assert body["search_query"] == "What is the leave policy?"
+    assert len(fake_llm.calls) == 1  # answer only, no rewrite call
+
+
+def test_employee_prompt_names_restricted_departments(
+    client: TestClient, role_tokens: dict[str, str], fake_llm: FakeLLM
+) -> None:
+    ask(client, role_tokens["employee"], "What is Isha Chowdhury's salary?")
+    system = fake_llm.calls[-1][0].content
+    assert "can NOT access:" in system
+    for department in ("engineering", "finance", "hr", "marketing"):
+        assert department in system.split("can NOT access:")[1]

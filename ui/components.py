@@ -82,8 +82,11 @@ def render_sources(result: ChatResult, show_all: bool) -> None:
             _render_source(source)
 
 
-def render_answer_footer(result: ChatResult) -> None:
+def render_answer_footer(result: ChatResult, question: str = "") -> None:
     parts = [f"⏱ {result.latency_ms / 1000:.1f}s"]
+    if result.search_query and result.search_query.strip() != question.strip():
+        # A follow-up was rewritten into a standalone search: show it for transparency.
+        parts.insert(0, f"🔎 searched for: “{result.search_query}”")
     if result.model:
         parts.append(result.model)
     st.caption(" · ".join(parts))

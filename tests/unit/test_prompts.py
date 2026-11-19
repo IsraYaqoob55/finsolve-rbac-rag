@@ -71,3 +71,43 @@ def test_alternative_citation_brackets_are_normalised() -> None:
     text = normalize_citations("12 days【2】 and a certificate【1】【2】")
     assert text == "12 days[2] and a certificate[1][2]"
     assert extract_citations(text, source_count=2) == [2, 1]
+
+
+def test_system_prompt_lists_restricted_departments_without_content() -> None:
+    prompt = build_system_prompt(
+        "Alice", "Employee", ["general"], {"hr": "Employee records", "finance": "Reports"}
+    )
+    assert "can NOT access: finance (Reports); hr (Employee records)" in prompt
+    assert "does not have access" in prompt
+    assert "ask which one they mean" in prompt  # ambiguity rule
+
+
+def test_system_prompt_without_restrictions_says_none() -> None:
+    assert "can NOT access: none" in build_system_prompt("Tony", "C-Level", ["finance"])
+
+
+def test_marked_citations_are_normalised() -> None:
+    from app.llm.prompts import normalize_citations
+
+    text = normalize_citations("40,000 sign-ups[1†L7-L9][2†L13-L16] and 28%【3†L2】")
+    assert text == "40,000 sign-ups[1][2] and 28%[3]"
+    assert extract_citations(text, source_count=3) == [1, 2, 3]
+
+
+def test_stream_normalizer_handles_citations_split_across_tokens() -> None:
+    from app.llm.prompts import CitationStreamNormalizer
+
+    normalizer = CitationStreamNormalizer()
+    tokens = ["Sign-ups grew", " 40%[1", "†L7", "-L9] and", " list [a", "] stays", " [2†L1]."]
+    emitted = [normalizer.feed(t) for t in tokens] + [normalizer.flush()]
+
+    assert "".join(emitted) == "Sign-ups grew 40%[1] and list [a] stays [2]."
+    assert emitted[2] == ""  # held back while the citation was still open
+
+
+def test_stream_normalizer_releases_unclosed_bracket_eventually() -> None:
+    from app.llm.prompts import CitationStreamNormalizer
+
+    normalizer = CitationStreamNormalizer()
+    text = normalizer.feed("[") + normalizer.feed("x" * 60) + normalizer.flush()
+    assert text == "[" + "x" * 60

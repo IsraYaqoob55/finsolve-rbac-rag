@@ -4,8 +4,11 @@ import hashlib
 import math
 import re
 from collections.abc import Iterator, Sequence
+from dataclasses import replace
 
 from app.llm.base import Message
+from app.retrieval.embeddings import SparseVector
+from app.retrieval.vector_store import SearchHit
 
 DIM = 64
 
@@ -63,3 +66,40 @@ class FakeLLM:
             raise self.error
         for word in self.reply.split(" "):
             yield word + " "
+
+
+class FakeSparseEmbedder:
+    """Keyword vectors: one hashed index per distinct word, weight = count."""
+
+    def _embed(self, text: str) -> SparseVector:
+        counts: dict[int, float] = {}
+        for word in re.findall(r"\w+", text.lower()):
+            index = int(hashlib.md5(word.encode()).hexdigest(), 16) % 100_000  # noqa: S324
+            counts[index] = counts.get(index, 0.0) + 1.0
+        return SparseVector(list(counts), list(counts.values()))
+
+    def embed_documents(self, texts: Sequence[str]) -> list[SparseVector]:
+        return [self._embed(t) for t in texts]
+
+    def embed_query(self, text: str) -> SparseVector:
+        return self._embed(text)
+
+
+class FakeReranker:
+    """Scores a hit by the share of query words that appear in its text."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def rerank(self, query: str, hits: Sequence[SearchHit]) -> list[SearchHit]:
+        self.calls += 1
+        words = set(re.findall(r"\w+", query.lower()))
+        scored = [
+            replace(
+                h,
+                score=len(words & set(re.findall(r"\w+", h.chunk.text.lower())))
+                / max(len(words), 1),
+            )
+            for h in hits
+        ]
+        return sorted(scored, key=lambda h: h.score, reverse=True)

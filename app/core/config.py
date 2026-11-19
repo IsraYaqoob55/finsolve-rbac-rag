@@ -72,6 +72,19 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=30, gt=0)
     llm_max_retries: int = Field(default=2, ge=0)
 
+    # --- Retrieval quality (Phase 5) ---
+    sparse_model: str = "Qdrant/bm25"  # keyword (BM25) vectors for hybrid search
+    # Chosen by benchmark (eval/retrieval_eval.py): best MRR and ~6x faster on CPU
+    # than ms-marco-MiniLM-L-12 with 30 candidates.
+    reranker_model: str = "jinaai/jina-reranker-v1-turbo-en"
+    retrieval_hybrid: bool = True  # dense + BM25, fused with reciprocal rank fusion
+    retrieval_quarter_boost: bool = True  # favour chunks from quarters named in the question
+    retrieval_rerank: bool = True  # cross-encoder re-scores the candidates
+    # Candidates fetched per list before fusion/reranking. Reranking cost grows
+    # linearly with this; 10 gave the same recall as 30 in our evaluation.
+    retrieval_candidates: int = Field(default=10, ge=1, le=200)
+    query_rewrite: bool = True  # rewrite follow-ups into standalone questions
+
     # --- Chat / RAG ---
     retrieval_top_k: int = Field(default=6, ge=1, le=20)
     chat_history_messages: int = Field(default=6, ge=0)  # previous turns sent to the LLM

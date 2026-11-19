@@ -2,7 +2,7 @@
 
 An internal chatbot for FinSolve Technologies. It uses Retrieval-Augmented Generation (RAG) with **role-based access control**: each user sees only the data their role permits, and every answer cites its source document.
 
-**Stack:** Python · FastAPI · Qdrant · fastembed (BGE) · Groq `gpt-oss-120b` (any OpenAI-compatible LLM) · Streamlit
+**Stack:** Python · FastAPI · Qdrant (hybrid dense + BM25) · fastembed (BGE embeddings, Jina reranker) · Groq `gpt-oss-120b` (any OpenAI-compatible LLM) · Streamlit
 
 > 🚧 Work in progress. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full roadmap.
 
@@ -70,6 +70,11 @@ The first run downloads the embedding model (~130 MB) into `.cache/`. Later runs
 ```bash
 python -m app.retrieval.search "What was revenue in Q3 2024?" --departments finance
 python -m app.retrieval.search "leave policy" --departments general -k 3
+```
+
+### Measure retrieval quality
+```bash
+python -m eval.retrieval_eval --compare --details
 ```
 
 ### Quality checks
@@ -158,3 +163,27 @@ A Streamlit app ([`ui/`](ui/)) that talks to the API over HTTP only. It never im
 - Suggested questions per role (from `roles.yaml`) on an empty chat.
 - Streamed answers, follow-up questions with conversation history, and a **Sources** panel per answer (document, section, department, quarter, relevance, excerpt). A toggle also shows retrieved-but-uncited sources.
 - Expired sessions return to login. The session lives in the browser tab: refreshing the page logs you out (by design; the token is never put in the URL).
+
+## Retrieval quality (measured)
+The four quarterly marketing reports share one template, and finance reports cover four quarters with identical section names, so pure semantic search often returned the right *kind* of section from the *wrong* quarter. Phase 5 adds layers on top of semantic search, each measured on a 25-question golden set ([`eval/retrieval_golden.yaml`](eval/retrieval_golden.yaml)) with C-level scope (all departments competing):
+
+| Retrieval mode | Hit@1 | Hit@3 | Hit@6 | MRR |
+|---|---|---|---|---|
+| Dense only (Phases 1-4) | 64% | 80% | 84% | 0.730 |
+| + quarter boost | 76% | 84% | 88% | 0.807 |
+| Hybrid (dense + BM25) | 80% | 92% | 96% | 0.870 |
+| Hybrid + quarter boost | 84% | 88% | 96% | 0.877 |
+| **Hybrid + boost + rerank (default)** | **88%** | **100%** | **100%** | **0.940** |
+
+*Hit@k: share of questions whose correct section is in the top k (6 chunks go to the LLM). MRR: mean of 1/rank of the first correct chunk.*
+
+- **Hybrid search.** Each chunk has a dense (meaning) vector and a sparse BM25 (keyword) vector. Qdrant runs both and merges them with Reciprocal Rank Fusion, so exact terms like "DSO" or "FINEMP1003" are found too.
+- **Quarter boost (soft).** Quarters in the question ("Q3", "third quarter") add extra candidate lists restricted to those quarters. Matching chunks get more votes but nothing is excluded, so "recommendations for Q1 2025" still finds them in the Q4 report.
+- **Reranking.** A cross-encoder reads question and chunk *together* and re-scores the top candidates. Chosen by benchmark: `jina-reranker-v1-turbo-en` on 10 candidates (MRR 0.940, ~1 s on CPU) beat `ms-marco-MiniLM-L-12` on 30 candidates (MRR 0.873, ~6.7 s).
+- **RBAC on every list.** Each dense, BM25 and quarter-boosted candidate list carries the department filter; the leak tests run through this full pipeline.
+
+### Conversational behaviour
+- **Follow-ups** ("And Q4?") are rewritten by the LLM into standalone searches ("net income and marketing spend Q4 2024"); the UI shows what was searched.
+- **Out-of-scope questions** get a clear answer ("your role (Employee) does not have access… contact HR") instead of a vague "not found". Only department *names and descriptions* are given to the model, never their contents.
+- **Ambiguous questions** get a clarifying question (e.g. two employees named Isha Chowdhury → "which one?").
+- **Vague questions** get a short overview plus suggested follow-up questions.

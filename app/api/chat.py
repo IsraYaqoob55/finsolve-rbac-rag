@@ -58,6 +58,7 @@ class ChatResponse(BaseModel):
     model: str | None
     latency_ms: int
     role: str
+    search_query: str = Field(description="What was searched (follow-ups are rewritten)")
 
 
 def _to_response(result: ChatAnswer, role: str) -> ChatResponse:
@@ -80,6 +81,7 @@ def _to_response(result: ChatAnswer, role: str) -> ChatResponse:
         model=result.model,
         latency_ms=result.latency_ms,
         role=role,
+        search_query=result.search_query,
     )
 
 

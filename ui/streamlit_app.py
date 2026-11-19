@@ -121,13 +121,16 @@ def history_payload() -> list[dict[str, str]]:
 
 
 def render_history() -> None:
+    previous_question = ""
     for message in state["messages"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             result: ChatResult | None = message.get("result")
             if result is not None:
                 render_sources(result, state.get("show_all_sources", False))
-                render_answer_footer(result)
+                render_answer_footer(result, previous_question)
+        if message["role"] == "user":
+            previous_question = message["content"]
 
 
 def render_welcome(suggestions: list[str]) -> None:
@@ -173,7 +176,7 @@ def chat_view() -> None:
             state["messages"].pop()  # let the user retry the same question
             return
         render_sources(result, state.get("show_all_sources", False))
-        render_answer_footer(result)
+        render_answer_footer(result, question)
     state["messages"].append({"role": "assistant", "content": result.answer, "result": result})
 
 

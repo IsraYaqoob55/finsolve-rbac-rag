@@ -24,7 +24,7 @@ from app.core.logging import ensure_utf8_console, setup_logging
 from app.ingestion.chunkers import chunk_document
 from app.ingestion.loaders import discover_documents
 from app.ingestion.models import Chunk, Document
-from app.retrieval.embeddings import Embedder
+from app.retrieval.embeddings import Embedder, SparseEmbedder
 from app.retrieval.vector_store import QdrantVectorStore
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,7 @@ def run_ingestion(
     settings: Settings,
     store: QdrantVectorStore,
     embedder: Embedder,
+    sparse_embedder: SparseEmbedder,
     data_dir: Path | None = None,
     rebuild: bool = False,
 ) -> IngestionReport:
@@ -86,8 +87,10 @@ def run_ingestion(
             continue
 
         chunks = chunk_documents(documents, settings)
-        vectors = embedder.embed_documents([c.text for c in chunks])
-        store.upsert(chunks, vectors)
+        texts = [c.text for c in chunks]
+        store.upsert(
+            chunks, embedder.embed_documents(texts), sparse_embedder.embed_documents(texts)
+        )
         # Remove points from the previous version (e.g. the doc got shorter).
         store.delete_source(source, keep_file_hash=file_hash)
 
@@ -145,19 +148,15 @@ def main() -> None:
         return
 
     # Heavy imports only when we really embed.
-    from app.retrieval.embeddings import FastEmbedEmbedder
     from app.retrieval.vector_store import build_client
+    from app.services.container import build_embedders
 
-    embedder = FastEmbedEmbedder(
-        settings.embedding_model,
-        cache_dir=settings.resolve(settings.embedding_cache_dir),
-        query_prefix=settings.embedding_query_prefix,
-    )
+    embedder, sparse_embedder = build_embedders(settings)
     store = QdrantVectorStore(
         build_client(settings), settings.qdrant_collection, embedder.dimension
     )
     try:
-        report = run_ingestion(settings, store, embedder, rebuild=args.rebuild)
+        report = run_ingestion(settings, store, embedder, sparse_embedder, rebuild=args.rebuild)
         logger.info("Ingestion finished: %s | total points: %d", report.summary(), store.count())
     finally:
         store.close()

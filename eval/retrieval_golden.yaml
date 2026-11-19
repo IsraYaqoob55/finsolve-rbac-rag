@@ -1,0 +1,74 @@
+# Golden set for retrieval evaluation.
+# A question "hits" if any retrieved chunk is from `doc` AND its section path
+# contains `section` (or, for CSV rows, its content contains `contains`).
+# Questions are run with C-level scope (all departments): the hardest case,
+# because look-alike documents from every department compete.
+
+questions:
+  # ---------- finance: quarter-specific (look-alike sections) ----------
+  - question: What was the net income in Q3 2024?
+    expected: [{doc: finance/quarterly_financial_report.md, section: "Q3 - July to September 2024 > Quarterly Financial Overview"}]
+  - question: What was the revenue in Q1 2024?
+    expected: [{doc: finance/quarterly_financial_report.md, section: "Q1 - January to March 2024 > Quarterly Financial Overview"}]
+  - question: How much did we spend on software subscriptions in Q2 2024?
+    expected: [{doc: finance/quarterly_financial_report.md, section: "Q2 - April to June 2024 > Quarterly Expense Breakdown"}]
+  - question: What was cash flow from operations in Q4 2024?
+    expected: [{doc: finance/quarterly_financial_report.md, section: "Q4 - October to December 2024 > Cash Flow Analysis"}]
+  - question: What financial risks did we face in Q3 2024 and how were they mitigated?
+    expected: [{doc: finance/quarterly_financial_report.md, section: "Q3 - July to September 2024 > Risks & Mitigation"}]
+
+  # ---------- finance: annual ----------
+  - question: What was our gross margin compared to the industry benchmark?
+    expected: [{doc: finance/financial_summary.md, section: Key Financial Ratios}]
+  - question: What is our days sales outstanding (DSO)?
+    expected: [{doc: finance/financial_summary.md, section: Key Financial Ratios}]
+  - question: How much did vendor services cost in 2024 and what made up that cost?
+    expected: [{doc: finance/financial_summary.md, section: Expense Breakdown}]
+
+  # ---------- marketing: quarter-specific (look-alike reports) ----------
+  - question: Which campaigns performed best in Q2 2024?
+    expected:
+      - {doc: marketing/marketing_report_q2_2024.md, section: Campaign Highlights}
+      - {doc: marketing/marketing_report_q2_2024.md, section: Performance Analysis}
+  - question: What were the marketing recommendations for Q4 2024?
+    expected: [{doc: marketing/marketing_report_q3_2024.md, section: Recommendations for Q4 2024}]
+  - question: What was the customer acquisition target for Q1 2024?
+    expected: [{doc: marketing/marketing_report_q1_2024.md, section: Projections & Targets}]
+  - question: How did the Latin American expansion go in Q3?
+    expected:
+      - {doc: marketing/marketing_report_q3_2024.md, section: Campaign Highlights}
+      - {doc: marketing/marketing_report_q3_2024.md, section: Marketing Overview}
+
+  # ---------- marketing: annual ----------
+  - question: What was the ROI of the Berlin fintech innovation event?
+    expected: [{doc: marketing/marketing_report_2024.md, section: Campaign Analysis}]
+  - question: How was the 2024 marketing budget allocated?
+    expected: [{doc: marketing/marketing_report_2024.md, section: Marketing Budget Breakdown}]
+
+  # ---------- engineering ----------
+  - question: What happens in continuous integration when code is committed?
+    expected: [{doc: engineering/engineering_master_doc.md, section: Continuous Integration}]
+  - question: Which databases does the data layer use?
+    expected: [{doc: engineering/engineering_master_doc.md, section: Data Layer}]
+  - question: What is the code review process?
+    expected: [{doc: engineering/engineering_master_doc.md, section: Code Review Process}]
+  - question: How do users authenticate to the platform?
+    expected: [{doc: engineering/engineering_master_doc.md, section: Authentication and Authorization}]
+  - question: What is the incident response process for security incidents?
+    expected: [{doc: engineering/engineering_master_doc.md, section: Incident Response}]
+
+  # ---------- general ----------
+  - question: How many sick leave days do employees get?
+    expected: [{doc: general/employee_handbook.md, section: Types of Leave}]
+  - question: Can I get reimbursed for travel expenses?
+    expected: [{doc: general/employee_handbook.md, section: Reimbursement Policies}]
+  - question: What is the dress code?
+    expected: [{doc: general/employee_handbook.md, section: Dress Code}]
+  - question: What is the notice period when I resign?
+    expected: [{doc: general/employee_handbook.md, section: Exit Policy}]
+
+  # ---------- hr (CSV rows) ----------
+  - question: What is Aadhya Patel's performance rating?
+    expected: [{doc: hr/hr_data.csv, contains: Aadhya Patel}]
+  - question: What is the salary of employee FINEMP1003?
+    expected: [{doc: hr/hr_data.csv, contains: FINEMP1003}]
