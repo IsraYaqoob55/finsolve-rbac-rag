@@ -6,6 +6,7 @@ it passes in. Putting auth here means every protected endpoint just declares
 """
 
 import logging
+import math
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -13,6 +14,8 @@ from fastapi.security import OAuth2PasswordBearer
 
 from app.auth.tokens import InvalidTokenError, decode_access_token
 from app.auth.user_store import User
+from app.core.audit import AuditLog
+from app.core.rate_limit import RateLimiter
 from app.rbac.policy import AccessScope, UnknownRoleError
 from app.services.container import Services
 
@@ -70,3 +73,38 @@ def get_access_scope(user: CurrentUser, services: ServicesDep) -> AccessScope:
 
 
 Scope = Annotated[AccessScope, Depends(get_access_scope)]
+
+
+def get_audit(request: Request) -> AuditLog:
+    audit: AuditLog = request.app.state.audit
+    return audit
+
+
+Audit = Annotated[AuditLog, Depends(get_audit)]
+
+
+def too_many_requests(retry_after: float) -> HTTPException:
+    seconds = max(1, math.ceil(retry_after))
+    return HTTPException(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        f"Too many requests. Please wait {seconds} seconds and try again.",
+        headers={"Retry-After": str(seconds)},
+    )
+
+
+def enforce_chat_rate_limit(request: Request, user: CurrentUser, audit: Audit) -> None:
+    """Per-user limit on chat requests (each one costs LLM tokens)."""
+    limiter: RateLimiter = request.app.state.chat_limiter
+    retry_after = limiter.hit(user.username)
+    if retry_after is not None:
+        security_log.warning("Chat rate limit hit", extra={"user": user.username})
+        audit.record("rate_limited", user=user.username, role=user.role, endpoint="chat")
+        raise too_many_requests(retry_after)
+
+
+ChatRateLimit = Depends(enforce_chat_rate_limit)
+
+
+def client_address(request: Request) -> str:
+    """The caller's IP. Behind a reverse proxy, run uvicorn with --proxy-headers."""
+    return request.client.host if request.client else "unknown"

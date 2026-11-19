@@ -12,8 +12,11 @@ from fastapi import FastAPI
 
 from app import __version__
 from app.api import auth, chat, health, search
+from app.api.middleware import RequestContextMiddleware
+from app.core.audit import AuditLog
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
+from app.core.rate_limit import RateLimiter
 from app.services.container import ServicesFactory, build_services
 
 logger = logging.getLogger(__name__)
@@ -46,6 +49,14 @@ def create_app(
         description="Internal chatbot with role-based access control over company documents.",
         lifespan=lifespan,
     )
+    # Cross-cutting web concerns live on app.state, next to the services.
+    audit_path = settings.resolve(settings.audit_log_path) if settings.audit_log_path else None
+    app.state.audit = AuditLog(audit_path, settings.audit_include_questions)
+    app.state.chat_limiter = RateLimiter(settings.rate_limit_chat_per_minute)
+    app.state.login_limiter = RateLimiter(settings.rate_limit_login_per_minute)
+
+    # Request IDs, access logs, security headers and safe 500 responses.
+    app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(search.router)

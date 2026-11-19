@@ -126,6 +126,9 @@ class FinSolveClient:
             raise AuthError("Your session has expired. Please log in again.", retryable=False)
         if response.status_code == 403:
             raise ApiError("Your role is not allowed to do this.", retryable=False)
+        if response.status_code == 429:
+            seconds = response.headers.get("Retry-After", "a few")
+            raise ApiError(f"You're sending questions too quickly. Please wait {seconds} seconds.")
         if response.status_code == 503:
             detail = response.json().get("detail", "The assistant is temporarily unavailable.")
             raise ApiError(str(detail))

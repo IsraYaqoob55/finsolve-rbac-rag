@@ -20,7 +20,9 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentUser, Scope, ServicesDep
+from app.api.deps import Audit, ChatRateLimit, CurrentUser, Scope, ServicesDep
+from app.auth.user_store import User
+from app.core.audit import AuditLog
 from app.llm.base import LLMError, Message
 from app.services.chat_service import ChatAnswer, DoneEvent, TokenEvent
 
@@ -87,20 +89,52 @@ def _to_response(result: ChatAnswer, role: str) -> ChatResponse:
     )
 
 
+def _audit_chat(
+    audit: AuditLog,
+    user: User,
+    question: str,
+    outcome: str,
+    result: ChatAnswer | None = None,
+    error: str | None = None,
+) -> None:
+    """One audit line per question: who asked, and which documents fed the answer."""
+    fields: dict[str, object] = {
+        "user": user.username,
+        "role": user.role,
+        "question": question,
+        "outcome": outcome,
+    }
+    if result is not None:
+        fields |= {
+            "route": result.route,
+            "search_query": result.search_query,
+            "model": result.model,
+            "latency_ms": result.latency_ms,
+            "documents": sorted({s.document for s in result.sources}),
+            "departments": sorted({s.department for s in result.sources}),
+            "cited": [s.number for s in result.cited_sources],
+        }
+    if error is not None:
+        fields["error"] = error
+    audit.record("chat", **fields)
+
+
 def _history(request: ChatRequest) -> list[Message]:
     return [Message(m.role, m.content) for m in request.history]
 
 
-@router.post("", response_model=ChatResponse)
+@router.post("", response_model=ChatResponse, dependencies=[ChatRateLimit])
 def chat(
-    request: ChatRequest, user: CurrentUser, scope: Scope, services: ServicesDep
+    request: ChatRequest, user: CurrentUser, scope: Scope, services: ServicesDep, audit: Audit
 ) -> ChatResponse:
     """Ask a question; get a grounded answer with citations to your accessible documents."""
     try:
         result = services.chat.answer(request.question, user, scope, _history(request))
     except LLMError as exc:
         logger.warning("LLM failure", extra={"error": str(exc)})
+        _audit_chat(audit, user, request.question, "llm_error", error=str(exc))
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    _audit_chat(audit, user, request.question, "answered", result)
     return _to_response(result, user.role)
 
 
@@ -108,9 +142,9 @@ def _sse(event: str, data: object) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
-@router.post("/stream")
+@router.post("/stream", dependencies=[ChatRateLimit])
 def chat_stream(
-    request: ChatRequest, user: CurrentUser, scope: Scope, services: ServicesDep
+    request: ChatRequest, user: CurrentUser, scope: Scope, services: ServicesDep, audit: Audit
 ) -> StreamingResponse:
     """Same as POST /chat, streamed as Server-Sent Events (token, done, error)."""
     history = _history(request)
@@ -121,12 +155,19 @@ def chat_stream(
                 if isinstance(event, TokenEvent):
                     yield _sse("token", {"text": event.text})
                 elif isinstance(event, DoneEvent):
+                    _audit_chat(audit, user, request.question, "answered", event.result)
                     yield _sse("done", _to_response(event.result, user.role).model_dump())
         except LLMError as exc:
             # Headers (200) are already sent once streaming starts, so errors
             # travel as an event the client can show.
             logger.warning("LLM failure during stream", extra={"error": str(exc)})
+            _audit_chat(audit, user, request.question, "llm_error", error=str(exc))
             yield _sse("error", {"detail": str(exc), "retryable": exc.retryable})
+        except Exception:
+            # Same reason: the middleware can't turn this into a 500 any more.
+            logger.exception("Unexpected error during stream")
+            _audit_chat(audit, user, request.question, "error")
+            yield _sse("error", {"detail": "Internal server error", "retryable": False})
 
     return StreamingResponse(
         events(),

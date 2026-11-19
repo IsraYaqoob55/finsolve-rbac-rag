@@ -75,8 +75,12 @@ def _clear_settings_cache() -> Iterator[None]:
 
 
 @pytest.fixture(scope="session")
-def test_settings() -> Settings:
-    return Settings(_env_file=None, jwt_secret_key="test-secret-" + "x" * 40)  # type: ignore[arg-type]
+def test_settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
+    return Settings(
+        _env_file=None,  # type: ignore[call-arg]
+        jwt_secret_key="test-secret-" + "x" * 40,  # type: ignore[arg-type]
+        audit_log_path=tmp_path_factory.mktemp("audit") / "audit.log",
+    )
 
 
 @pytest.fixture(scope="session")
