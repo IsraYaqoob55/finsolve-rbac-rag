@@ -1,0 +1,35 @@
+# Runs automatically on every `git commit` (after `pre-commit install`).
+# Never modify the provided company documents.
+exclude: ^data/
+# Blocks the commit if a check fails, so bad code never reaches GitHub.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+
+  # Local hooks use the tools installed in .venv, so versions match CI exactly.
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff lint
+        entry: ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: mypy app
+        language: system
+        types: [python]
+        pass_filenames: false
