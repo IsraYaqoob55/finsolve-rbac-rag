@@ -28,21 +28,21 @@ An internal AI assistant for **FinSolve Technologies** that answers questions ab
 ## Architecture
 ```mermaid
 flowchart LR
-    U([User]) --> UI[Streamlit UI]
-    UI -- "HTTP + JWT" --> API[FastAPI]
-    API --> AUTH["Auth: bcrypt + JWT<br/>user reloaded per request"]
-    AUTH --> POL["RBAC policy<br/>role → departments"]
-    POL --> ROUTE{Analytical question?}
-    ROUTE -- "yes, role may query" --> SQL["Text-to-SQL<br/>read-only sandbox"]
-    ROUTE -- always --> RET["Hybrid retrieval<br/>dense + BM25 + quarter boost<br/>filter: department in role"]
-    RET --> QD[(Qdrant)]
-    RET --> RR[Cross-encoder reranker]
-    RR --> GUARD[RBAC guard re-checks every chunk]
-    SQL --> LLM
-    GUARD --> LLM["LLM: Groq gpt-oss-120b<br/>grounded prompt, cites sources"]
+    U["User"] --> UI["Streamlit UI"]
+    UI -->|"HTTP + JWT"| API["FastAPI"]
+    API --> AUTH["Auth: bcrypt + JWT, user reloaded per request"]
+    AUTH --> POL["RBAC policy: role to departments"]
+    POL --> ROUTE{"Analytical question?"}
+    ROUTE -->|"yes, if role may query"| SQL["Text-to-SQL in a read-only sandbox"]
+    ROUTE -->|"always"| RET["Hybrid retrieval, filtered to the role's departments"]
+    RET --> QD[("Qdrant")]
+    RET --> RR["Cross-encoder reranker"]
+    RR --> GUARD["RBAC guard re-checks every chunk"]
+    SQL --> LLM["LLM: grounded prompt, cited answer"]
+    GUARD --> LLM
     LLM --> API
-    API --> AUD[(Audit log)]
-    ING["Ingestion: chunk, tag department and quarter,<br/>embed dense + sparse"] --> QD
+    API --> AUD[("Audit log")]
+    ING["Ingestion: chunk, tag, embed"] --> QD
 ```
 **Stack:** Python 3.12 · FastAPI · Qdrant · fastembed (BGE-small embeddings, BM25, Jina reranker, all local ONNX) · Groq `gpt-oss-120b` (any OpenAI-compatible LLM) · SQLite · Streamlit · Docker Compose · GitHub Actions
 
