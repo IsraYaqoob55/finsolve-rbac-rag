@@ -104,6 +104,20 @@ class Settings(BaseSettings):
     # Password given to demo users by `python -m app.auth.manage seed`.
     seed_user_password: SecretStr | None = None
 
+    # --- Production hardening (Phase 8) ---
+    # Append-only JSON-lines audit trail of logins and questions. Empty = disabled.
+    audit_log_path: Path | None = Path("var/audit.log")
+    # Store the question text in the audit log (useful for investigations; it may
+    # contain sensitive words, so the file must be protected like the data itself).
+    audit_include_questions: bool = True
+    # Requests per minute; 0 disables the limit.
+    rate_limit_chat_per_minute: int = Field(default=20, ge=0)
+    # Login attempts per minute for one username from one client address.
+    rate_limit_login_per_minute: int = Field(default=10, ge=0)
+    # Optional smaller model for helper calls (follow-up rewriting). On free tiers
+    # each model has its own rate limit, so this also spreads the load.
+    llm_helper_model: str | None = None
+
     @field_validator(
         "qdrant_url",
         "qdrant_api_key",
@@ -111,6 +125,8 @@ class Settings(BaseSettings):
         "llm_base_url",
         "llm_reasoning_effort",
         "seed_user_password",
+        "audit_log_path",
+        "llm_helper_model",
         mode="before",
     )
     @classmethod

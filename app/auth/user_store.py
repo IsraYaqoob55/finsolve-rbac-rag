@@ -76,6 +76,9 @@ class UserStore:
         ).fetchall()
         return [User(r["username"], r["full_name"], r["role"], bool(r["disabled"])) for r in rows]
 
+    def count(self) -> int:
+        return int(self._conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
     def authenticate(self, username: str, password: str) -> User | None:
         """Return the user if the credentials are valid and the account is active."""
         row = self._conn.execute(

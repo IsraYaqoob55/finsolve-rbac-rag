@@ -20,6 +20,28 @@ Defined in [`config/roles.yaml`](config/roles.yaml); adding a role or department
 
 All demo users share the password set in `SEED_USER_PASSWORD` (see `.env.example`).
 
+## Quick start with Docker (whole system, one command)
+
+**Requirements:** Docker Desktop (or Docker Engine with Compose v2).
+
+```bash
+git clone https://github.com/IsraYaqoob55/finsolve-rbac-rag.git
+cd finsolve-rbac-rag
+cp .env.example .env            # Windows: copy .env.example .env
+# edit .env: set LLM_API_KEY (free key: https://console.groq.com/keys)
+docker compose up --build
+```
+Open the chat UI at http://localhost:8501 (API docs: http://localhost:8000/docs) and log in as a demo user with the `SEED_USER_PASSWORD` from `.env`.
+
+```
+qdrant (healthy) ─▶ init: seed users + index documents (exits) ─▶ api (/health/ready) ─▶ ui
+```
+- **Two images from one [`Dockerfile`](Dockerfile):** the API image has the ML models baked in at build time (no downloads at startup); the UI image contains only Streamlit and httpx and talks to the API over HTTP.
+- **Qdrant runs as a server** (`qdrant/qdrant`), so ingestion and the API can run at the same time.
+- **Data survives restarts:** the index, users and audit log live in named volumes. `docker compose down -v` wipes them.
+- **Containers run as a non-root user**, `.env` is never copied into an image (`.dockerignore`), and health checks gate start-up order.
+- **CI builds and starts the full stack on every push** and runs [`scripts/smoke_test.py`](scripts/smoke_test.py): readiness, login, and an RBAC check (an Employee's search returns only general documents).
+
 ## Getting started (development)
 
 **Requirements:** Python 3.11+, Git.
@@ -132,6 +154,22 @@ login ─▶ bcrypt check ─▶ JWT ─▶ every request: verify token ─▶ r
 - **Credential hygiene.** bcrypt hashes; the same error for unknown user and wrong password, with equal timing; pinned JWT algorithm (no `alg: none`); the app refuses to start in production with the placeholder JWT secret.
 - **Tested.** 54 leak tests (9 adversarial queries × 6 roles) check the access matrix from the problem statement, written independently of the config.
 
+## Production hardening
+| Concern | What the app does |
+|---|---|
+| **Audit trail** | Every login, failed login, chat question, search and rate-limit hit is appended to `var/audit.log` as one JSON line: who, role, question, which documents and departments fed the answer, outcome, latency. Answers "who saw finance data last week?" without digging through debug logs. Set `AUDIT_INCLUDE_QUESTIONS=false` to redact question text. |
+| **Rate limiting** | Sliding-window limits: 20 questions per user per minute (chat and search share the budget), 10 login attempts per minute per username and client. Over the limit: HTTP 429 with `Retry-After`, shown in the UI as "please wait N seconds". In-memory per process; with several replicas the same interface would sit on Redis. |
+| **Request IDs** | Each request gets an `X-Request-ID` (or keeps a safe one sent by the caller). It is in the response headers, on every log line and on every audit line, so one ID finds everything about a request. |
+| **Errors** | Unexpected exceptions return `{"detail": "Internal server error", "request_id": ...}`: no stack traces or internal messages reach clients. During streaming they become an `error` event. LLM outages return 503 with a retryable flag. |
+| **Health** | `/health` (liveness, no dependencies) and `/health/ready` (index and users present), used by Docker health checks and the start-up order. |
+| **Security headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. |
+| **LLM quota** | Optional `LLM_HELPER_MODEL`: follow-up rewriting uses a smaller model, which is faster and, on Groq, has its own rate limit. |
+
+Example audit line:
+```json
+{"ts": "2026-11-19T15:39:41.366+00:00", "event": "chat", "request_id": "fec7531b...", "user": "kabir_fin", "role": "finance", "question": "How much did vendor services cost in 2024?", "outcome": "answered", "route": "docs", "model": "openai/gpt-oss-120b", "latency_ms": 3751, "documents": ["finance/financial_summary.md", "finance/quarterly_financial_report.md"], "departments": ["finance"], "cited": [1, 2, 3, 4, 5]}
+```
+
 ## API
 Open http://127.0.0.1:8000/docs, click **Authorize**, and log in as a demo user.
 
@@ -143,6 +181,7 @@ Open http://127.0.0.1:8000/docs, click **Authorize**, and log in as a demo user.
 | POST | `/chat/stream` | Same, streamed as Server-Sent Events (`token` … `done`, or `error`) |
 | POST | `/search` | Semantic search limited to your role's departments, with source references |
 | GET | `/health` | Liveness check |
+| GET | `/health/ready` | Readiness: index built, users present (503 otherwise) |
 
 User admin: `python -m app.auth.manage {seed,list,create,set-role,disable,enable}`.
 

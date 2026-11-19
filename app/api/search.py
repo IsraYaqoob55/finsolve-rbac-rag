@@ -7,7 +7,7 @@ builds on exactly the same secure retriever.
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentUser, Scope, ServicesDep
+from app.api.deps import Audit, ChatRateLimit, CurrentUser, Scope, ServicesDep
 
 router = APIRouter(tags=["search"])
 
@@ -39,13 +39,22 @@ class SearchResponse(BaseModel):
     results: list[SearchResult]
 
 
-@router.post("/search", response_model=SearchResponse)
+@router.post("/search", response_model=SearchResponse, dependencies=[ChatRateLimit])
 def search(
-    request: SearchRequest, user: CurrentUser, scope: Scope, services: ServicesDep
+    request: SearchRequest, user: CurrentUser, scope: Scope, services: ServicesDep, audit: Audit
 ) -> SearchResponse:
     """Semantic search over the documents the caller's role may access."""
     hits = services.retriever.retrieve(
         request.query, scope, limit=request.limit, quarter=request.quarter, year=request.year
+    )
+    # Search returns raw document text, so it is audited like chat.
+    audit.record(
+        "search",
+        user=user.username,
+        role=user.role,
+        question=request.query,
+        documents=sorted({hit.chunk.source_path for hit in hits}),
+        departments=sorted({hit.chunk.department for hit in hits}),
     )
     return SearchResponse(
         query=request.query,

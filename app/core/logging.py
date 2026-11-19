@@ -10,6 +10,8 @@ import logging
 import sys
 from datetime import UTC, datetime
 
+from app.core.request_context import RequestIdFilter
+
 # Attributes every LogRecord has, plus ones Formatter.format() adds while formatting.
 _STANDARD_ATTRS = set(vars(logging.makeLogRecord({}))) | {"message", "asctime"}
 
@@ -70,6 +72,7 @@ def setup_logging(level: str = "INFO", json_logs: bool = False) -> None:
         handler.setFormatter(JsonFormatter())
     else:
         handler.setFormatter(ReadableFormatter())
+    handler.addFilter(RequestIdFilter())  # every line logged during a request gets its ID
     root = logging.getLogger()
     root.handlers.clear()  # avoid duplicate logs on reload
     root.addHandler(handler)

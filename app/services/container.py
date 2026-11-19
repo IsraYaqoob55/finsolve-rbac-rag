@@ -136,7 +136,15 @@ def build_services(settings: Settings) -> Services:
     components = build_retrieval_components(settings, with_reranker=settings.retrieval_rerank)
     retriever = components.retriever(settings)
     llm = OpenAICompatibleProvider.from_settings(settings)
-    rewriter = QueryRewriter(llm) if settings.query_rewrite else None
+    # Follow-up rewriting is a short, easy task: a smaller model is fast enough.
+    helper_llm = (
+        OpenAICompatibleProvider.from_settings(
+            settings.model_copy(update={"llm_model": settings.llm_helper_model})
+        )
+        if settings.llm_helper_model
+        else llm
+    )
+    rewriter = QueryRewriter(helper_llm) if settings.query_rewrite else None
     sql_tool = build_sql_tool(settings, llm, policy) if settings.sql_enabled else None
     return Services(
         settings=settings,

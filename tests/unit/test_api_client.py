@@ -89,6 +89,15 @@ def test_503_passes_through_backend_message() -> None:
         client.chat("q", [])
 
 
+def test_429_tells_user_how_long_to_wait() -> None:
+    transport = httpx.MockTransport(
+        lambda r: httpx.Response(429, json={"detail": "x"}, headers={"Retry-After": "17"})
+    )
+    with pytest.raises(ApiError, match="wait 17 seconds") as info:
+        make_client(transport).chat_stream("q", []).__next__()
+    assert info.value.retryable
+
+
 def test_chat_stream_yields_tokens_then_done() -> None:
     body = sse(("token", {"text": "Revenue "}), ("token", {"text": "was"}), ("done", RESULT))
 
