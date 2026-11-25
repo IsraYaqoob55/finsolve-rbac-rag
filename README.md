@@ -9,9 +9,9 @@ An internal AI assistant for **FinSolve Technologies** that answers questions ab
 
 > **The problem.** Finance, Marketing, HR, Engineering and leadership each sit on their own documents. People wait days for answers that are already written down somewhere, and nobody can simply "put everything in a chatbot", because salaries, financials and architecture must stay with the right people.
 
-<!-- Demo: record with ScreenToGif / LICEcap, save as docs/assets/demo.gif, then uncomment:
-![Demo](docs/assets/demo.gif)
--->
+| Employee asks for finance data | HR asks an analytical question | Finance sees the cited sources |
+|---|---|---|
+| ![An Employee is told politely that finance data is outside their role](docs/assets/employee-access-denied.png) | ![HR gets average attendance by department, computed with SQL](docs/assets/hr-sql-answer.png) | ![Finance answer with expanded sources showing document, section, quarter and relevance](docs/assets/finance-cited-sources.png) |
 
 **Contents:** [Highlights](#highlights) · [Architecture](#architecture) · [Roles](#roles) · [Quick start (Docker)](#quick-start-with-docker-whole-system-one-command) · [Development setup](#getting-started-development) · [Example questions](#try-it-example-questions-per-role) · [Security](#security-model) · [Evaluation](#answer-quality-end-to-end-evaluation) · [Design decisions](#design-decisions) · [Future work](#limitations-and-future-work)
 
